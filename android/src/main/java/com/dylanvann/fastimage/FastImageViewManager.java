@@ -72,7 +72,16 @@ class FastImageViewManager extends SimpleViewManager<FastImageViewWithUrl> imple
 
         //final GlideUrl glideUrl = FastImageViewConverter.getGlideUrl(view.getContext(), source);
         final FastImageSource imageSource = FastImageViewConverter.getImageSource(view.getContext(), source);
-        final GlideUrl glideUrl = imageSource.getGlideUrl();
+        GlideUrl imageSourceGlideUrl = null;
+        try {
+            imageSourceGlideUrl = imageSource.getGlideUrl();
+        } catch (Exception e) {
+            // TODO: emit error event for sentry to catch.
+            // Clear the image.
+            view.setImageDrawable(null);
+            return;
+        }
+        final GlideUrl glideUrl = imageSourceGlideUrl;
 
         // Cancel existing request.
         view.glideUrl = glideUrl;
@@ -94,8 +103,16 @@ class FastImageViewManager extends SimpleViewManager<FastImageViewWithUrl> imple
         RCTEventEmitter eventEmitter = context.getJSModule(RCTEventEmitter.class);
         int viewId = view.getId();
         eventEmitter.receiveEvent(viewId, REACT_ON_LOAD_START_EVENT, new WritableNativeMap());
-
         if (requestManager != null) {
+            Object sourceForLoad = null;
+            try {
+                sourceForLoad = imageSource.getSourceForLoad();
+            } catch (Exception e) {
+                // TODO: emit error event for sentry to catch.
+                // Clear the image.
+                view.setImageDrawable(null);
+                return;
+            }
             requestManager
                     // This will make this work for remote and local images. e.g.
                     //    - file:///
@@ -103,7 +120,7 @@ class FastImageViewManager extends SimpleViewManager<FastImageViewWithUrl> imple
                     //    - res:/
                     //    - android.resource://
                     //    - data:image/png;base64
-                    .load(imageSource.getSourceForLoad())
+                    .load(sourceForLoad)
                     .apply(FastImageViewConverter.getOptions(context, imageSource, source))
                     .listener(new FastImageRequestListener(key))
                     .into(view);
